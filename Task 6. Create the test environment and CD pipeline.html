@@ -1,0 +1,312 @@
+<h2>Grant Cloud Build access to GKE</h2>
+
+cd ~
+PROJECT_NUMBER="$(gcloud projects describe ${PROJECT_ID} --format='get(projectNumber)')"
+
+gcloud projects add-iam-policy-binding ${PROJECT_NUMBER} \
+--member=serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com \
+--role=roles/container.developer
+
+mkdir hello-cloudbuild-env
+gcloud storage cp -r gs://spls/gsp1077/gke-gitops-tutorial-cloudbuild/* hello-cloudbuild-env
+
+cd hello-cloudbuild-env
+export REGION="REGION"
+sed -i "s/us-central1/$REGION/g" cloudbuild.yaml
+sed -i "s/us-central1/$REGION/g" cloudbuild-delivery.yaml
+sed -i "s/us-central1/$REGION/g" cloudbuild-trigger-cd.yaml
+sed -i "s/us-central1/$REGION/g" kubernetes.yaml.tpl
+
+cd ~/hello-cloudbuild-env
+ssh-keyscan -t rsa github.com > known_hosts.github
+chmod +x known_hosts.github
+
+git init
+git config credential.helper gcloud.sh
+git remote add google https://github.com/${GITHUB_USERNAME}/hello-cloudbuild-env
+git branch -m master
+git add . && git commit -m "initial commit"
+git push google master
+
+cd ~/hello-cloudbuild-env
+
+git checkout -b production
+
+cd ~/hello-cloudbuild-env
+
+<br>
+# Copyright 2018 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# [START cloudbuild-delivery]
+steps:
+# This step deploys the new version of our container image
+# in the hello-cloudbuild Kubernetes Engine cluster.
+- name: 'gcr.io/cloud-builders/kubectl'
+  id: Deploy
+  args:
+  - 'apply'
+  - '-f'
+  - 'kubernetes.yaml'
+  env:
+  - 'CLOUDSDK_COMPUTE_REGION='
+  - 'CLOUDSDK_CONTAINER_CLUSTER=hello-cloudbuild'
+
+# Access the id_github file from Secret Manager, and setup SSH
+- name: 'gcr.io/cloud-builders/git'
+  secretEnv: ['SSH_KEY']
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+    echo "$$SSH_KEY" >> /root/.ssh/id_rsa
+    chmod 400 /root/.ssh/id_rsa
+    cp known_hosts.github /root/.ssh/known_hosts
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+
+# Clone the repository
+- name: 'gcr.io/cloud-builders/git'
+  args:
+  - clone
+  - --recurse-submodules
+  - git@github.com:${GITHUB-USERNAME}/hello-cloudbuild-env.git
+  volumes:
+  - name: ssh
+    path: /root/.ssh
+
+# This step copies the applied manifest to the production branch
+# The COMMIT_SHA variable is automatically
+# replaced by Cloud Build.
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: Copy to production branch
+  entrypoint: /bin/sh
+  args:
+  - '-c'
+  - |
+    set -x && \
+    cd hello-cloudbuild-env && \
+    git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
+    sed "s/GOOGLE_CLOUD_PROJECT/${PROJECT_ID}/g" kubernetes.yaml.tpl | \
+    git fetch origin production && \
+    # Switch to the production branch and copy the kubernetes.yaml file from the candidate branch
+    git checkout production && \
+    git checkout $COMMIT_SHA kubernetes.yaml && \
+    # Commit the kubernetes.yaml file with a descriptive commit message
+    git commit -m "Manifest from commit $COMMIT_SHA
+    $(git log --format=%B -n 1 $COMMIT_SHA)" && \
+    # Push the changes back to Cloud Source Repository
+    git push origin production
+  volumes:
+  - name: ssh
+    path: /root/.ssh
+
+availableSecrets:
+  secretManager:
+  - versionName: projects/${PROJECT_NUMBER}/secrets/ssh_key_secret/versions/1
+    env: 'SSH_KEY'
+
+# [END cloudbuild-delivery]
+options:
+  logging: CLOUD_LOGGING_ONLY
+</br>
+
+<br>git add .</br>
+
+git commit -m "Create cloudbuild.yaml for deployment"
+
+git checkout -b candidate
+
+git push google production
+
+git push google candidate
+
+<h2>Create the trigger for the continuous delivery pipeline</h2>
+
+
+<h2>In the console title bar, enter Cloud Build Triggers, and then click Triggers, Cloud Build.</h2>
+
+Click Create Trigger.
+
+Set Name to hello-cloudbuild-deploy. Set Region to <filled in at lab start>.
+
+Under Event, select Push to a branch.
+
+Under Source, for Repository click Connect new repository.
+
+a. Select GitHub (Cloud Build GitHub App). Click Continue.
+
+b. Authenticate to your source repository with your GitHub username and password.
+
+c. Select ${GITHUB_USERNAME}/hello-cloudbuild-env repository. Click OK.
+
+d. Select I understand that GitHub content for the selected repositories..
+
+e. Click Connect.
+
+Under Repository select ${GITHUB_USERNAME}/hello-cloudbuild-env.
+
+Under Source, select ^candidate$ as your Branch.
+
+Under Build configuration, select Cloud Build configuration file.
+
+In the Cloud Build configuration file location field, type cloudbuild.yaml after the /.
+
+Set Service account to the Compute Engine default service account.
+
+Click Create.
+
+In your hello-cloudbuild-app directory, create a file named known_hosts.github, add the public SSH key to this file and provide the necessary permission to the file:
+
+cd ~/hello-cloudbuild-app
+ssh-keyscan -t rsa github.com > known_hosts.github
+chmod +x known_hosts.github
+
+git add .
+git commit -m "Adding known_host file."
+git push google master
+
+<h2>Modify the continuous integration pipeline to trigger the continuous delivery pipeline</h2>
+
+cd ~/hello-cloudbuild-app
+
+
+# Copyright 2018 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# [START cloudbuild]
+steps:
+# This step runs the unit tests on the app
+- name: 'python:3.7-slim'
+  id: Test
+  entrypoint: /bin/sh
+  args:
+  - -c
+  - 'pip install flask && python test_app.py -v'
+
+# This step builds the container image.
+- name: 'gcr.io/cloud-builders/docker'
+  id: Build
+  args:
+  - 'build'
+  - '-t'
+  - '-docker.pkg.dev/$PROJECT_ID/my-repository/hello-cloudbuild:$SHORT_SHA'
+  - '.'
+
+# This step pushes the image to Artifact Registry
+# The PROJECT_ID and SHORT_SHA variables are automatically
+# replaced by Cloud Build.
+- name: 'gcr.io/cloud-builders/docker'
+  id: Push
+  args:
+  - 'push'
+  - '-docker.pkg.dev/$PROJECT_ID/my-repository/hello-cloudbuild:$SHORT_SHA'
+# [END cloudbuild]
+
+# Access the id_github file from Secret Manager, and setup SSH
+- name: 'gcr.io/cloud-builders/git'
+  secretEnv: ['SSH_KEY']
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+    echo "$$SSH_KEY" >> /root/.ssh/id_rsa
+    chmod 400 /root/.ssh/id_rsa
+    cp known_hosts.github /root/.ssh/known_hosts
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+
+# Clone the repository
+- name: 'gcr.io/cloud-builders/git'
+  args:
+  - clone
+  - --recurse-submodules
+  - git@github.com:${GITHUB-USERNAME}/hello-cloudbuild-env.git
+  volumes:
+  - name: ssh
+    path: /root/.ssh
+
+# [START cloudbuild-trigger-cd]
+# This step clones the hello-cloudbuild-env repository
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: Change directory
+  entrypoint: /bin/sh
+  args:
+  - '-c'
+  - |
+    cd hello-cloudbuild-env && \
+    git checkout candidate && \
+    git config user.email $(gcloud auth list --filter=status:ACTIVE --format='value(account)')
+  volumes:
+  - name: ssh
+    path: /root/.ssh
+
+# This step generates the new manifest
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: Generate manifest
+  entrypoint: /bin/sh
+  args:
+  - '-c'
+  - |
+     sed "s/GOOGLE_CLOUD_PROJECT/${PROJECT_ID}/g" kubernetes.yaml.tpl | \
+     sed "s/COMMIT_SHA/${SHORT_SHA}/g" > hello-cloudbuild-env/kubernetes.yaml
+  volumes:
+  - name: ssh
+    path: /root/.ssh
+
+# This step pushes the manifest back to hello-cloudbuild-env
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: Push manifest
+  entrypoint: /bin/sh
+  args:
+  - '-c'
+  - |
+    set -x && \
+    cd hello-cloudbuild-env && \
+    git add kubernetes.yaml && \
+    git commit -m "Deploying image -docker.pkg.dev/$PROJECT_ID/my-repository/hello-cloudbuild:${SHORT_SHA}
+    Built from commit ${COMMIT_SHA} of repository hello-cloudbuild-app
+    Author: $(git log --format='%an <%ae>' -n 1 HEAD)" && \
+    git push origin candidate
+  volumes:
+  - name: ssh
+    path: /root/.ssh
+availableSecrets:
+  secretManager:
+  - versionName: projects/${PROJECT_NUMBER}/secrets/ssh_key_secret/versions/1
+    env: 'SSH_KEY'
+
+  
+
+<h2>Commit the modifications and push them to GitHub Repositories:</h2>
+cd ~/hello-cloudbuild-app
+ 
+git add cloudbuild.yaml
+ 
+git commit -m "Trigger CD pipeline"
+ 
+git push google master

@@ -1,0 +1,18 @@
+In the console, in the Navigation menu (Navigation menu icon), click Kubernetes Engine > Gateways, Services & Ingress > Services.
+
+In Cloud Shell, replace "Hello World" with "Hello Cloud Build", both in the application and in the unit test:
+cd ~/hello-cloudbuild-app
+
+sed -i 's/Hello World/Hello Cloud Build/g' app.py
+
+sed -i 's/Hello World/Hello Cloud Build/g' test_app.py
+
+Commit and push the change to GitHub repositories:
+git add app.py test_app.py
+
+git commit -m "Hello Cloud Build"
+
+git push google master
+
+<img src="https://cdn.qwiklabs.com/g9DL0f%2BcVV7vEd6m%2F2pQ4EKV%2BESCBJgzdRRcgMM%2BSYI%3D" />
+

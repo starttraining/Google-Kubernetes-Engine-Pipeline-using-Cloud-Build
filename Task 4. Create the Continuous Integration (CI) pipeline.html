@@ -1,0 +1,64 @@
+<img src=""https://cdn.qwiklabs.com/z3p4mZq3O2H5X9gBCmSJLRV9KcC9hL9yhYcO3k3Oq7Q%3D" />
+
+The cloudbuild.yaml file, already included in the code, is the pipeline's configuration.
+
+In the console title bar, enter Cloud Build triggers in the Search field, and then click Triggers, Cloud Build in the search results.
+
+Click Create Trigger.
+
+For Name, type <b>hello-cloudbuild</b>. Set Region to <filled in at lab start>.
+
+Set Event to Push to a branch.
+
+Under Source, for Repository, click Connect new repository.
+
+a. Select GitHub (Cloud Build GitHub App). Click Continue.
+
+b. Authenticate to your source repository with your username and password.
+
+c. If you get the pop up "The GitHub App is not installed on any of your repositories", follow these steps.
+
+i. Click **Install Google Cloud Build**. Install the Cloud Build GitHub App in your personal account. Permit the installation using your GitHub account.
+
+ii. Under **Repository access**. Choose **Only select repositories**. Click the **Select the repositories** menu and select `${GITHUB_USERNAME}/hello-cloudbuild-app` and `${GITHUB_USERNAME}/hello-cloudbuild-env`.
+
+iii. Click **Install**.
+Copied!
+d. Select ${GITHUB_USERNAME}/hello-cloudbuild-app for Repository. Click OK.
+
+e. Accept I understand that GitHub content for the selected repositories....
+
+f. Click Connect.
+
+If the Cloud Build GitHub App is already installed in your account, you get the option to Edit Repositories on GitHub.
+
+a. Under Repository access choose Only select repositories. Click the Select repositories menu and select the repository **$${GITHUB_USERNAME}/hello-cloudbuild-app** and **$${GITHUB_USERNAME}/hello-cloudbuild-env**.
+
+b. Click Save.
+
+On the Trigger page, from the Repository list, click ${GITHUB_USERNAME}/hello-cloudbuild-app.
+
+For Branch type .* (any branch).
+
+In the Configuration section, set Type to Cloud Build configuration file.
+
+In the Location field, type cloudbuild.yaml after the /.
+
+Set Service account to the Compute Engine default service account.
+
+Click Create.
+
+When the trigger is created, return to the Cloud Shell. You now need to push the application code to GitHub repositories to trigger the CI pipeline in Cloud Build.
+
+To start this trigger, run the following command:
+cd ~/hello-cloudbuild-app
+
+git add .
+
+git commit -m "Type Any Commit Message here"
+
+git push google master
+
+In the left pane, click Dashboard.
+
+You should see a build running or having recently finished. You can click the build to follow its execution and examine its logs.

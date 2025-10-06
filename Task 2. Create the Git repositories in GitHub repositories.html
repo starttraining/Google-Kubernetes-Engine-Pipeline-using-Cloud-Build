@@ -1,0 +1,28 @@
+In Cloud Shell, run the following commands to create the two Git repositories:
+gh repo create  hello-cloudbuild-app --private 
+
+gh repo create  hello-cloudbuild-env --private
+
+Download the sample code from Cloud Storage:
+
+cd ~
+mkdir hello-cloudbuild-app
+
+gcloud storage cp -r gs://spls/gsp1077/gke-gito
+
+cd ~/hello-cloudbuild-app
+
+export REGION="REGION"
+sed -i "s/us-central1/$REGION/g" cloudbuild.yaml
+sed -i "s/us-central1/$REGION/g" cloudbuild-delivery.yaml
+sed -i "s/us-central1/$REGION/g" cloudbuild-trigger-cd.yaml
+sed -i "s/us-central1/$REGION/g" kubernetes.yaml.tpl
+
+PROJECT_ID=$(gcloud config get-value project)
+
+git init
+git config credential.helper gcloud.sh
+git remote add google https://github.com/${GITHUB_USERNAME}/hello-cloudbuild-app
+git branch -m master
+git add . && git commit -m "initial commit"
+
